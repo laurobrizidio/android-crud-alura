@@ -13,6 +13,7 @@ import br.com.alura.estoque.model.Produto;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import retrofit2.internal.EverythingIsNonNull;
 
 public class ProdutoRepository {
 
@@ -26,19 +27,19 @@ public class ProdutoRepository {
     }
 
 
-    public void buscaProdutos(RepositoryListener<List<Produto>> listener) {
+    public void buscaProdutos(Result<List<Produto>> listener) {
         searchInDatabase(listener);
     }
 
-    public void searchInDatabase(RepositoryListener<List<Produto>> listener) {
+    public void searchInDatabase(Result<List<Produto>> listener) {
         new BaseAsyncTask<>(dao::buscaTodos
                 , resultado -> {
-            listener.notify(resultado);
+            listener.Sucess(resultado);
             searchProductsInAPI(listener);
         }).execute();
     }
 
-    private void searchProductsInAPI(RepositoryListener<List<Produto>> listener) {
+    private void searchProductsInAPI(Result<List<Produto>> listener) {
         service = AppRetrofit.getProdutoService();
         Call<List<Produto>> call = service.getProdutos();
         new BaseAsyncTask<>(() -> {
@@ -49,11 +50,11 @@ public class ProdutoRepository {
                 e.printStackTrace();
             }
             return dao.buscaTodos();
-        }, listener::notify) //Notifica que o dado esta pronto
+        }, listener::Sucess) //Notifica que o dado esta pronto
                 .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
-    public void salva(Produto produto, RepositoryListener<Produto> listener) {
+    public void salva(Produto produto, Result<Produto> listener) {
         Call<Produto> call = service.salva(produto);
         call.enqueue(new Callback<Produto>() {
             @Override
@@ -62,7 +63,7 @@ public class ProdutoRepository {
                 new BaseAsyncTask<>(() -> {
                     long id = dao.salva(produtoSalvo);
                     return dao.buscaProduto(id);
-                }, listener::notify)
+                }, listener::Sucess)
                         .execute();
             }
 
@@ -75,29 +76,63 @@ public class ProdutoRepository {
 
     }
 
-    public void update(Produto produto, RepositoryListener<Produto> listener) {
+    public void update(Produto produto, Result<Produto> listener) {
         Call<Produto> call = service.updateProducts(produto.getId(), produto);
         call.enqueue(new Callback<Produto>() {
             @Override
+            @EverythingIsNonNull
             public void onResponse(Call<Produto> call, Response<Produto> response) {
                 Produto produtoEditado = response.body();
-                new BaseAsyncTask<>(() -> {
-                    dao.atualiza(produtoEditado);
-                    return produto;
-                }, listener::notify)
-                        .execute();
+                if (produtoEditado != null) {
+                    new BaseAsyncTask<>(() -> {
+                        dao.atualiza(produtoEditado);
+                        return produtoEditado;
+                    }, listener::Sucess)
+                            .execute();
+                }
+
             }
 
             @Override
+            @EverythingIsNonNull
             public void onFailure(Call<Produto> call, Throwable t) {
 
+                listener.onError(null);
+            }
+        });
+    }
+
+    public void remove(Produto produtoRemovido, Result<Boolean> listener) {
+
+        Call<Void> call = service.remove(produtoRemovido.getId());
+        call.enqueue(new Callback<Void>() {
+            @Override
+            @EverythingIsNonNull
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    new BaseAsyncTask<>(() -> {
+                        dao.remove(produtoRemovido);
+                        return produtoRemovido;
+                    }, resultado -> listener.Sucess(true))
+                            .execute();
+                } else {
+                    listener.onError(false);
+                }
+            }
+
+            @Override
+            @EverythingIsNonNull
+            public void onFailure(Call<Void> call, Throwable t) {
+                listener.onError(false);
             }
         });
 
     }
 
-    public interface RepositoryListener<T> {
-        void notify(T produtos);
+    public interface Result<T> {
+        void Sucess(T data);
+
+        void onError(T data);
     }
 
 }

@@ -1,14 +1,16 @@
 package br.com.alura.estoque.ui.activity;
 
 import android.os.Bundle;
-
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import java.util.List;
+
 import br.com.alura.estoque.R;
-import br.com.alura.estoque.asynctask.BaseAsyncTask;
 import br.com.alura.estoque.database.EstoqueDatabase;
 import br.com.alura.estoque.database.dao.ProdutoDAO;
 import br.com.alura.estoque.model.Produto;
@@ -36,7 +38,17 @@ public class ListaProdutosActivity extends AppCompatActivity {
         EstoqueDatabase db = EstoqueDatabase.getInstance(this);
         dao = db.getProdutoDAO();
         repo = new ProdutoRepository(dao);
-        repo.buscaProdutos(adapter::atualiza);
+        repo.buscaProdutos(new ProdutoRepository.Result<List<Produto>>() {
+            @Override
+            public void Sucess(List<Produto> data) {
+                adapter.atualiza(data);
+            }
+
+            @Override
+            public void onError(List<Produto> data) {
+                Toast.makeText(getApplicationContext(), "Erro ao Buscar os produtos", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void configuraListaProdutos() {
@@ -46,12 +58,19 @@ public class ListaProdutosActivity extends AppCompatActivity {
         adapter.setOnItemClickRemoveContextMenuListener(this::remove);
     }
 
-    private void remove(int posicao, Produto produtoRemovido) {
-        new BaseAsyncTask<>(() -> {
-            dao.remove(produtoRemovido);
-            return null;
-        }, resultado -> adapter.remove(posicao))
-                .execute();
+    private void remove(int posicao, Produto produto) {
+        repo.remove(produto, new ProdutoRepository.Result<Boolean>() {
+            @Override
+            public void Sucess(Boolean data) {
+                adapter.remove(posicao);
+                Toast.makeText(getApplicationContext(), "Removido com Sucesso", Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onError(Boolean data) {
+                Toast.makeText(getApplicationContext(), "Falha na Remoção", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void configuraFabSalvaProduto() {
@@ -61,8 +80,16 @@ public class ListaProdutosActivity extends AppCompatActivity {
 
     private void abreFormularioSalvaProduto() {
         new SalvaProdutoDialog(this,
-                produto -> repo.salva(produto, produtoSalvo -> {
-                    adapter.adiciona(produtoSalvo);
+                produto -> repo.salva(produto, new ProdutoRepository.Result<Produto>() {
+                    @Override
+                    public void Sucess(Produto data) {
+                        adapter.adiciona(data);
+                    }
+
+                    @Override
+                    public void onError(Produto data) {
+                        Toast.makeText(getApplicationContext(), "Falha ao adicionar produto", Toast.LENGTH_LONG).show();
+                    }
                 })).mostra();
     }
 
@@ -74,8 +101,16 @@ public class ListaProdutosActivity extends AppCompatActivity {
     }
 
     private void edita(int posicao, Produto produto) {
-        repo.update(produto, produtos -> {
-            adapter.edita(posicao, produtos);
+        repo.update(produto, new ProdutoRepository.Result<Produto>() {
+            @Override
+            public void Sucess(Produto data) {
+                adapter.edita(posicao, data);
+            }
+
+            @Override
+            public void onError(Produto data) {
+                Toast.makeText(getApplicationContext(), "Falha ao Editar produto", Toast.LENGTH_LONG).show();
+            }
         });
 
     }
